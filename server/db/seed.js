@@ -286,4 +286,50 @@ const insertFaction = db.prepare('INSERT OR IGNORE INTO factions (name, descript
 factions.forEach(f => insertFaction.run(f));
 console.log('✓ Factions seeded');
 
+// ============================================================
+// PATROL PATHS
+// ============================================================
+const insertPath = db.prepare('INSERT OR IGNORE INTO patrol_paths (name, zone_id, loop_type) VALUES (@name, @zone_id, @loop_type)');
+const insertWp   = db.prepare('INSERT OR IGNORE INTO patrol_waypoints (path_id, step_order, x, y, z, heading, wait_time) VALUES (@path_id, @step_order, @x, @y, @z, @heading, @wait_time)');
+
+// Guard Fynn patrols the road through Qeynos Hills
+const gfPath = insertPath.run({ name: 'Qeynos Hills Road', zone_id: qhZone.id, loop_type: 'ping_pong' });
+const gfPathId = gfPath.lastInsertRowid;
+[
+  { step_order: 1, x: 5,   y: 5,   z: 0, heading: 0,    wait_time: 3 },
+  { step_order: 2, x: 80,  y: 10,  z: 0, heading: 0.1,  wait_time: 0 },
+  { step_order: 3, x: 160, y: 30,  z: 0, heading: 0.2,  wait_time: 2 },
+  { step_order: 4, x: 220, y: 20,  z: 0, heading: 0,    wait_time: 0 },
+].forEach(w => insertWp.run({ path_id: gfPathId, ...w }));
+
+// Gnoll Scout loop patrol in Qeynos Hills (north area)
+const gsPath = insertPath.run({ name: 'Gnoll Scout Circuit', zone_id: qhZone.id, loop_type: 'loop' });
+const gsPathId = gsPath.lastInsertRowid;
+[
+  { step_order: 1, x: 150, y: 100, z: 0, heading: 0,   wait_time: 0 },
+  { step_order: 2, x: 200, y: 50,  z: 0, heading: 1.5, wait_time: 1 },
+  { step_order: 3, x: 180, y: -20, z: 0, heading: 3.0, wait_time: 0 },
+  { step_order: 4, x: 100, y: 30,  z: 0, heading: 4.7, wait_time: 0 },
+].forEach(w => insertWp.run({ path_id: gsPathId, ...w }));
+
+// Gnoll Warrior patrol in Blackburrow entrance hall (ping_pong)
+const gwPath = insertPath.run({ name: 'Blackburrow Entrance', zone_id: bbZone.id, loop_type: 'ping_pong' });
+const gwPathId = gwPath.lastInsertRowid;
+[
+  { step_order: 1, x: -50, y: 0,  z: -10, heading: 0,   wait_time: 0 },
+  { step_order: 2, x: 0,   y: 0,  z: -10, heading: 3.1, wait_time: 2 },
+  { step_order: 3, x: 50,  y: 0,  z: -10, heading: 0,   wait_time: 0 },
+].forEach(w => insertWp.run({ path_id: gwPathId, ...w }));
+
+// Assign paths to spawns
+const getFynnSpawn  = db.prepare("SELECT ns.id FROM npc_spawns ns JOIN npcs n ON n.id=ns.npc_id WHERE n.name='Guard Fynn' LIMIT 1").get();
+const getScoutSpawn = db.prepare("SELECT ns.id FROM npc_spawns ns JOIN npcs n ON n.id=ns.npc_id WHERE n.name='Gnoll Scout' LIMIT 1").get();
+const getWarriorSpawn = db.prepare("SELECT ns.id FROM npc_spawns ns JOIN npcs n ON n.id=ns.npc_id WHERE n.name='Gnoll Warrior' LIMIT 1").get();
+
+if (getFynnSpawn)    db.prepare('UPDATE npc_spawns SET path_id=?, wander=0 WHERE id=?').run(gfPathId, getFynnSpawn.id);
+if (getScoutSpawn)   db.prepare('UPDATE npc_spawns SET path_id=?, wander=0 WHERE id=?').run(gsPathId, getScoutSpawn.id);
+if (getWarriorSpawn) db.prepare('UPDATE npc_spawns SET path_id=?, wander=0 WHERE id=?').run(gwPathId, getWarriorSpawn.id);
+
+console.log('✓ Patrol paths seeded');
+
 console.log('\nSeed complete!');

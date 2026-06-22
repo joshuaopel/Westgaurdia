@@ -20,6 +20,25 @@ function authenticateSocket(socket, next) {
 function registerHandlers(io) {
   io.use(authenticateSocket);
 
+  // ---- Broadcast world events to zone rooms ----
+  world.on('npc_spawn',  ({ zoneId, npc })              => io.to(`zone:${zoneId}`).emit('npc:spawned', npc));
+  world.on('npc_move',   ({ zoneId, spawnId, x, y, z, heading }) => io.to(`zone:${zoneId}`).emit('npc:moved', { spawnId, x, y, z, heading }));
+  world.on('npc_aggro',  ({ zoneId, spawnId, target })  => io.to(`zone:${zoneId}`).emit('npc:aggro', { spawnId, target }));
+  world.on('npc_reset',  ({ zoneId, spawnId, x, y, z }) => io.to(`zone:${zoneId}`).emit('npc:reset', { spawnId, x, y, z }));
+  world.on('combat',     ({ zoneId, events, targetSocketId, spawnId, targetHp, targetHpMax }) => {
+    // Send combat events to whole zone (others see it) and targeted player specifically
+    io.to(`zone:${zoneId}`).emit('combat:events', { events, spawnId });
+    // Send HP update to the targeted player
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('char:damage_taken', {
+        spawnId,
+        hp_current: targetHp,
+        hp_max:     targetHpMax,
+        events,
+      });
+    }
+  });
+
   io.on('connection', (socket) => {
     const db = getDb();
     let activeChar = null;
@@ -81,7 +100,7 @@ function registerHandlers(io) {
 
       events.forEach(evt => {
         if (evt.type === 'melee_hit') {
-          const result = zone.damageNpc(spawnId, evt.damage);
+          const result = zone.damageNpc(spawnId, evt.damage, socket.id);
           if (result?.killed) {
             _handleNpcDeath(socket, db, activeChar, npc, io);
           }

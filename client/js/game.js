@@ -157,6 +157,26 @@ function initSocket() {
     document.getElementById('whoModal').classList.remove('hidden');
   });
 
+  socket.on('npc:aggro', ({ spawnId, target }) => {
+    addChat('Combat', `${target} has been spotted!`, 'combat');
+  });
+
+  socket.on('npc:reset', ({ spawnId, x, y, z }) => {
+    if (window.renderer) window.renderer.moveEntity(spawnId, x, y, z, false);
+  });
+
+  socket.on('char:damage_taken', ({ spawnId, hp_current, hp_max, events }) => {
+    me.hp_current = hp_current;
+    me.hp_max     = hp_max;
+    updateCharPanel({ character: me });
+    events.forEach(evt => {
+      if (evt.type === 'melee_hit')  addChat('Combat', `${evt.attacker} hits YOU for ${evt.damage} damage!`, 'combat');
+      if (evt.type === 'miss')       addChat('Combat', `${evt.attacker} misses you.`, 'combat');
+    });
+    if (window.renderer) window.renderer.flashDamage(socket.id, true);
+    if (hp_current <= 0) addChat('System', 'You have been slain!', 'system');
+  });
+
   socket.on('npc:dialogue', ({ spawnId, name, npc_type, dialogue }) => {
     showNpcDialogue(spawnId, name, npc_type, dialogue);
   });

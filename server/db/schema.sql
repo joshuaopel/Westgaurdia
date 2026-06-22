@@ -264,20 +264,51 @@ CREATE TABLE IF NOT EXISTS npcs (
 );
 
 -- ------------------------------------------------------------
--- NPC Spawns (placement in zones)
+-- Patrol Paths
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS npc_spawns (
+CREATE TABLE IF NOT EXISTS patrol_paths (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  name      TEXT    NOT NULL,
+  zone_id   INTEGER NOT NULL REFERENCES zones(id),
+  loop_type TEXT    NOT NULL DEFAULT 'loop'  -- loop | ping_pong | once
+);
+
+CREATE TABLE IF NOT EXISTS patrol_waypoints (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  npc_id      INTEGER NOT NULL REFERENCES npcs(id),
-  zone_id     INTEGER NOT NULL REFERENCES zones(id),
+  path_id     INTEGER NOT NULL REFERENCES patrol_paths(id) ON DELETE CASCADE,
+  step_order  INTEGER NOT NULL DEFAULT 1,
   x           REAL    NOT NULL DEFAULT 0,
   y           REAL    NOT NULL DEFAULT 0,
   z           REAL    NOT NULL DEFAULT 0,
   heading     REAL    NOT NULL DEFAULT 0,
-  respawn_time INTEGER NOT NULL DEFAULT 300,  -- seconds
-  wander      INTEGER NOT NULL DEFAULT 0,
+  wait_time   REAL    NOT NULL DEFAULT 0   -- seconds to pause at this point
+);
+
+-- ------------------------------------------------------------
+-- NPC Spawns (proxy objects — one row = one spawn point)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS npc_spawns (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  npc_id        INTEGER NOT NULL REFERENCES npcs(id),
+  zone_id       INTEGER NOT NULL REFERENCES zones(id),
+  -- position (spawn origin and safe-return point)
+  x             REAL    NOT NULL DEFAULT 0,
+  y             REAL    NOT NULL DEFAULT 0,
+  z             REAL    NOT NULL DEFAULT 0,
+  heading       REAL    NOT NULL DEFAULT 0,
+  -- timing
+  respawn_time  INTEGER NOT NULL DEFAULT 300,  -- seconds until re-pop after death
+  -- movement behaviour: wander OR patrol (patrol takes priority)
+  wander        INTEGER NOT NULL DEFAULT 0,
   wander_radius INTEGER NOT NULL DEFAULT 50,
-  path_id     INTEGER  -- optional patrol path
+  path_id       INTEGER REFERENCES patrol_paths(id),
+  -- aggro overrides (NULL = use npc defaults)
+  aggro_range_override   INTEGER,
+  leash_range_override   INTEGER,
+  -- grouping label for related spawns (e.g. 'camp_a')
+  spawn_group   TEXT,
+  -- optional note visible in GM tool
+  editor_note   TEXT
 );
 
 -- ------------------------------------------------------------

@@ -8,6 +8,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const charRoutes = require('./routes/characters');
 const worldRoutes = require('./routes/world');
+const gmRoutes = require('./routes/gm');
 const { registerHandlers } = require('./socket/handlers');
 
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use(express.static(CLIENT_DIR));
 app.use('/api/auth', authRoutes);
 app.use('/api/characters', charRoutes);
 app.use('/api/world', worldRoutes);
+app.use('/api/gm', gmRoutes);
 
 // Health
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Westgaurdia — GM Spawn Editor</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/gm.css">
+</head>
+<body class="gm-page">
+
+  <div class="gm-header">
+    <span class="logo-title" style="font-size:16px">WESTGAURDIA</span>
+    <span class="gm-badge">GM EDITOR</span>
+    <div class="gm-zone-select">
+      <label>Zone:</label>
+      <select id="zoneSelect"></select>
+    </div>
+    <div class="gm-toolbar">
+      <button class="tool-btn active" id="tool-select"   title="Select / move (V)">&#9654; Select</button>
+      <button class="tool-btn"        id="tool-spawn"    title="Place spawn (S)">&#9670; Spawn</button>
+      <button class="tool-btn"        id="tool-waypoint" title="Add waypoint (W)">&#9632; Waypoint</button>
+      <button class="tool-btn"        id="tool-path"     title="New path (P)">&#x21BB; Path</button>
+    </div>
+    <div class="gm-actions">
+      <button class="btn btn-sm btn-primary" id="saveBtn">Save Changes</button>
+      <a href="/charselect.html" class="btn btn-sm">&#8592; Game</a>
+    </div>
+  </div>
+
+  <div class="gm-layout">
+
+    <!-- Left: NPC palette + path list -->
+    <div class="gm-sidebar">
+      <div class="gm-section">
+        <h4>NPC Templates</h4>
+        <input type="text" id="npcSearch" placeholder="Search..." class="gm-input">
+        <div id="npcPalette" class="npc-palette"></div>
+      </div>
+      <div class="gm-section">
+        <h4>Patrol Paths
+          <button class="btn btn-xs btn-primary" id="newPathBtn">+ New</button>
+        </h4>
+        <div id="pathList" class="path-list"></div>
+      </div>
+    </div>
+
+    <!-- Center: 2D overhead map canvas -->
+    <div class="gm-canvas-wrap">
+      <canvas id="gmCanvas"></canvas>
+      <div class="gm-coords" id="gmCoords">x: 0  y: 0</div>
+      <div class="gm-hint" id="gmHint">V=Select  S=Place Spawn  W=Add Waypoint  P=New Path  Del=Delete selected</div>
+    </div>
+
+    <!-- Right: inspector panel -->
+    <div class="gm-inspector" id="inspector">
+      <div class="gm-section">
+        <h4>Inspector</h4>
+        <div id="inspectorContent">
+          <p class="inspector-empty">Click a spawn or waypoint to inspect it.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- New Path Modal -->
+  <div id="newPathModal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>New Patrol Path</h3>
+        <button class="modal-close" onclick="closeNewPathModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Path Name</label>
+          <input type="text" id="newPathName" class="gm-input" placeholder="e.g. North Road Loop">
+        </div>
+        <div class="form-group">
+          <label>Loop Type</label>
+          <select id="newPathLoop" class="gm-input">
+            <option value="loop">Loop (A→B→C→A)</option>
+            <option value="ping_pong">Ping-Pong (A→B→C→B→A)</option>
+            <option value="once">Once (A→B→C, stop)</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="closeNewPathModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="createPath()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/css/../js/gm.js"></script>
+</body>
+</html>
