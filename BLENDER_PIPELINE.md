@@ -67,68 +67,121 @@ client/assets/zones/everfrost.glb
 
 ---
 
-## Character Models
+## Character Models — Weeble Style
+
+Characters use a deliberately simple, chunky "weeble wobble" aesthetic.
+The engine procedurally generates a weeble from code (so the game works
+without any art), and replaces it with your GLB the moment it loads.
+Lean into the style — keep it fun, not realistic.
 
 ### File Naming
 ```
 client/assets/characters/<race>_<class>.glb
+client/assets/npcs/<npc_type_or_id>.glb
 ```
 
 ### Examples
 ```
 client/assets/characters/human_war.glb
 client/assets/characters/darkelf_nec.glb
-client/assets/characters/halfling_rog.glb
+client/assets/npcs/gnoll.glb
+client/assets/npcs/human_guard.glb
+client/assets/npcs/generic.glb     ← fallback for unknown NPCs
 ```
 
 ### Races
-`human`, `barbarian`, `erudite`, `woodelf`, `highelf`, `darkelf`, `halfelf`, `halfling`, `gnome`, `dwarf`, `troll`, `ogre`, `iksar`
+`human`, `barbarian`, `erudite`, `woodelf`, `highelf`, `darkelf`,
+`halfelf`, `halfling`, `gnome`, `dwarf`, `troll`, `ogre`, `iksar`
 
 ### Classes (lowercase)
-`war`, `pal`, `rng`, `shd`, `mnk`, `brd`, `rog`, `bst`, `clr`, `dru`, `shm`, `wiz`, `mag`, `nec`, `enc`
+`war`, `pal`, `rng`, `shd`, `mnk`, `brd`, `rog`, `bst`,
+`clr`, `dru`, `shm`, `wiz`, `mag`, `nec`, `enc`
 
-### Character Rig Requirements
-- Use a **Humanoid rig** compatible with Three.js animation
-- Bone naming convention (mixamo-compatible or custom):
-  - `Hips`, `Spine`, `Chest`, `Neck`, `Head`
-  - `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand`
-  - `RightShoulder`, `RightArm`, `RightForeArm`, `RightHand`
-  - `LeftUpLeg`, `LeftLeg`, `LeftFoot`
-  - `RightUpLeg`, `RightLeg`, `RightFoot`
+---
+
+### Weeble Mesh Proportions
+
+Build the character as a **single skinned mesh** over a minimal rig.
+Reference dimensions (1 unit = 1 game unit, feet at origin):
+
+| Part | Shape | Scale | Center Y |
+|---|---|---|---|
+| Body | Sphere (r=0.42) | (1, 1.3, 1) — taller than wide | 0.55 |
+| Head | Sphere (r=0.30) | (1, 1, 1) | 1.40 |
+| Arm L/R | Sphere (r=0.14) | (0.65, 0.85, 0.65) | 0.70 |
+| Eyes | Sphere (r=0.05) | — | 1.44 |
+
+Total height ≈ 1.7 units. No legs — the rounded belly is the bottom.
+
+Keep poly count low: 500–1000 tris per character is plenty.
+
+---
+
+### Minimal Rig — 5 Bones
+
+The rig intentionally has only 5 bones. Keep it this simple.
+
+```
+Root          (at ground, y=0)
+└── Body      (body sphere pivot, y=0.55)
+    ├── Head  (head sphere pivot, y=1.40)
+    ├── ArmL  (left arm pivot, x=-0.52, y=0.70)
+    └── ArmR  (right arm pivot, x= 0.52, y=0.70)
+```
+
+Bone naming — use **exactly** these names (case-sensitive):
+
+| Bone | Purpose |
+|---|---|
+| `Root` | Root motion / world translation |
+| `Body` | Whole-body wobble & squash-stretch |
+| `Head` | Head turn / nod |
+| `ArmL` | Left arm flap |
+| `ArmR` | Right arm flap |
+
+---
 
 ### Required Animations (NLA Editor)
-| Animation | Description |
-|---|---|
-| `idle` | Standing still |
-| `walk` | Walking forward |
-| `run` | Running forward |
-| `attack1` | Primary melee swing |
-| `attack2` | Secondary melee swing |
-| `cast` | Spell casting gesture |
-| `hit` | Taking damage reaction |
-| `death` | Dying |
-| `loot` | Bending to loot |
+
+Export each action as a named NLA track. The engine looks these up by
+exact name:
+
+| Clip name | Duration | Description |
+|---|---|---|
+| `idle` | 2–3 s, looping | Gentle side-to-side sway on Body bone |
+| `walk` | 0.6 s, looping | Bigger body wobble; ArmL/ArmR alternate up-down |
+| `attack1` | 0.5 s, once | Body lunges forward then rocks back |
+| `hit` | 0.35 s, once | Body reels backward then recovers |
+| `death` | 0.8 s, hold last frame | Body tips over sideways (Z rotation to 90°) |
+| `cast` | 1.2 s, once | Head tilts up; both arms raise briefly |
+
+If a clip is missing the engine falls back to its built-in procedural
+version of that animation, so you can ship them incrementally.
+
+---
+
+### Blender NLA Export Checklist
+
+1. Rig in **Pose Mode** — zero pose = T-pose (arms straight out)
+2. Each animation is a separate **NLA action** with the exact clip name
+3. **Apply rest pose as armature bind pose** before export
+4. Export settings:
+   - ✓ Armature / Skinning
+   - ✓ Shape Keys (if used for facial morph)
+   - ✓ All NLA actions → exported as separate clips
+   - Animation mode: **NLA Tracks**
 
 ---
 
 ## NPC Models
 
-### File Naming
-```
-client/assets/npcs/<npc_id>.glb
-client/assets/npcs/<npc_type_name>.glb
-```
+NPC models use the same weeble style and 5-bone rig as characters.
+The renderer tries `<npc_id>.glb` first, then `generic.glb` as the fallback.
+A procedural coloured weeble shows until the GLB loads — colour varies by NPC type
+(monster=red, guard=blue, merchant=green, quest_giver=gold, trainer=purple).
 
-### Examples
-```
-client/assets/npcs/gnoll.glb
-client/assets/npcs/human_guard.glb
-client/assets/npcs/generic.glb    ← fallback placeholder
-```
-
-The renderer will first try `<npc_id>.glb`, then fall back to a type-based name, then `generic.glb`.
-
-Same animation set as characters is recommended.
+Same clip names as characters: `idle`, `walk`, `attack1`, `hit`, `death`, `cast`.
+Non-combat NPCs only need `idle` — the rest are optional.
 
 ---
 

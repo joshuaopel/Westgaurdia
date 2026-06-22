@@ -120,7 +120,10 @@ function initSocket() {
       switch (evt.type) {
         case 'melee_hit':
           addChat('Combat', `${evt.attacker} hits ${evt.defender} for ${evt.damage} damage.`, 'combat');
-          if (window.renderer && spawnId) window.renderer.flashDamage(spawnId, false);
+          if (window.renderer && spawnId) {
+            window.renderer.flashDamage(spawnId, false);
+            window.renderer.playAnim(spawnId, false, 'hit');
+          }
           updateTargetHp();
           break;
         case 'miss':
@@ -200,7 +203,10 @@ function initSocket() {
       if (evt.type === 'melee_hit')  addChat('Combat', `${evt.attacker} hits YOU for ${evt.damage} damage!`, 'combat');
       if (evt.type === 'miss')       addChat('Combat', `${evt.attacker} misses you.`, 'combat');
     });
-    if (window.renderer) window.renderer.flashDamage(socket.id, true);
+    if (window.renderer) {
+      window.renderer.flashDamage(socket.id, true);
+      window.renderer.playAnim(socket.id, true, hp_current <= 0 ? 'death' : 'hit');
+    }
     if (hp_current <= 0) addChat('System', 'You have been slain!', 'system');
   });
 
@@ -238,6 +244,7 @@ function initInput() {
 }
 
 let _pos = { x: 0, y: 0, z: 0, heading: 0 };
+let _wasMoving = false;
 function sendMovement() {
   if (!socket || !me || _inZoneTransition) return;
   let moved = false;
@@ -274,6 +281,13 @@ function sendMovement() {
       _fireTrigger(hit);
       return;
     }
+  }
+
+  // Walk ↔ idle animation transition
+  const isMoving = (dx !== 0 || dy !== 0);
+  if (isMoving !== _wasMoving) {
+    _wasMoving = isMoving;
+    if (window.renderer) window.renderer.playAnim(socket.id, true, isMoving ? 'walk' : 'idle');
   }
 
   if (moved) {
@@ -409,6 +423,7 @@ function updateTargetHp() { /* Updated via combat events */ }
 function attackTarget() {
   if (targetSpawnId === null || !targetIsNpc) return;
   socket.emit('attack:melee', { spawnId: targetSpawnId });
+  if (window.renderer) window.renderer.playAnim(socket.id, true, 'attack');
 }
 
 function talkTarget() {

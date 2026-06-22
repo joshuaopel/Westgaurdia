@@ -22,7 +22,7 @@
   const {
     Scene, PerspectiveCamera, WebGLRenderer,
     AmbientLight, DirectionalLight, HemisphereLight,
-    GridHelper, Mesh, BoxGeometry, CylinderGeometry,
+    GridHelper, Group, Mesh, BoxGeometry, CylinderGeometry, SphereGeometry,
     MeshLambertMaterial, MeshStandardMaterial,
     Color, Fog, Clock, Vector3, Raycaster,
   } = THREE;
@@ -47,6 +47,7 @@
       this.clock  = new Clock();
       this.playerMeshes = new Map();  // socketId  → Object3D
       this.npcMeshes    = new Map();  // spawnId   → Object3D
+      this._mixers      = new Map();  // entity key → AnimationMixer (for GLB chars)
       this.collisionMeshes = [];      // invisible col_* meshes for raycasting
       this._triggerMeshes  = [];      // debug wireframe boxes for zone triggers
       this.loadedZone = null;
@@ -379,42 +380,220 @@
     // Entity meshes (players / NPCs)
     // ================================================================
 
+    // ----------------------------------------------------------------
+    // Weeble character body colors by player class / NPC type
+    // ----------------------------------------------------------------
+    _entityColor(data, isPlayer) {
+      if (isPlayer) {
+        const cls = (data.class || '').toLowerCase();
+        const palette = {
+          war:'#7090b0', pal:'#c8b040', rng:'#507840', shd:'#503060',
+          mnk:'#c06028', brd:'#a04880', rog:'#404040', bst:'#806030',
+          clr:'#e8e8ff', dru:'#408850', shm:'#609060', wiz:'#3040a0',
+          mag:'#8040c0', nec:'#205020', enc:'#a050c0',
+        };
+        return new Color(palette[cls] || '#4488ff');
+      }
+      const typeMap = {
+        monster:'#c03030', named:'#c05020', guard:'#6080b0',
+        merchant:'#40a040', quest_giver:'#c0a020', trainer:'#8040a0',
+        banker:'#60a060',
+      };
+      return new Color(typeMap[data.npc_type] || '#cc4444');
+    }
+
+    // ----------------------------------------------------------------
+    // Build the procedural weeble group
+    // Layout (Three.js local Y = up):
+    //   feet at y=0, body center y=0.55, head center y=1.4
+    // ----------------------------------------------------------------
+    _buildWeeble(bodyColor) {
+      const skinColor = new Color('#f0c898');
+      const group = new Group();
+
+      // Body — egg-shaped sphere, slightly taller than wide
+      const bodyMesh = new Mesh(
+        new SphereGeometry(0.42, 12, 10),
+        new MeshStandardMaterial({ color: bodyColor })
+      );
+      bodyMesh.scale.set(1, 1.3, 1);
+      bodyMesh.position.y = 0.55;
+      bodyMesh.castShadow = true;
+      bodyMesh.name = 'body';
+      group.add(bodyMesh);
+
+      // Head
+      const headMesh = new Mesh(
+        new SphereGeometry(0.3, 10, 8),
+        new MeshStandardMaterial({ color: skinColor })
+      );
+      headMesh.position.y = 1.4;
+      headMesh.castShadow = true;
+      headMesh.name = 'head';
+      group.add(headMesh);
+
+      // Eyes (two dark spheres facing +Z in local space)
+      const eyeGeo = new SphereGeometry(0.055, 6, 6);
+      const eyeMat = new MeshStandardMaterial({ color: 0x222222 });
+      [[-0.12, 1.44, 0.26], [0.12, 1.44, 0.26]].forEach(([x, y, z], i) => {
+        const eye = new Mesh(eyeGeo, eyeMat);
+        eye.position.set(x, y, z);
+        eye.name = i === 0 ? 'eyeL' : 'eyeR';
+        group.add(eye);
+      });
+
+      // Arms — small squished spheres on the sides
+      const armGeo = new SphereGeometry(0.14, 8, 6);
+      [[-0.52, 0.70, 0.08], [0.52, 0.70, 0.08]].forEach(([x, y, z], i) => {
+        const arm = new Mesh(armGeo, new MeshStandardMaterial({ color: bodyColor }));
+        arm.scale.set(0.65, 0.85, 0.65);
+        arm.position.set(x, y, z);
+        arm.castShadow = true;
+        arm.name = i === 0 ? 'armL' : 'armR';
+        group.add(arm);
+      });
+
+      return group;
+    }
+
+    // ----------------------------------------------------------------
+    // Per-frame procedural weeble animation
+    // Called from render loop with the current frame delta (seconds)
+    // ----------------------------------------------------------------
+    _animateWeeble(entity, delta) {
+      if (!entity.userData.isProceduralWeeble) return;
+
+      entity.userData.animPhase = (entity.userData.animPhase || 0) + delta;
+      const p   = entity.userData.animPhase;
+      const off = entity.userData.phaseOffset || 0;
+      const state = entity.userData.animState || 'idle';
+
+      const body = entity.getObjectByName('body');
+      const head = entity.getObjectByName('head');
+      const armL = entity.getObjectByName('armL');
+      const armR = entity.getObjectByName('armR');
+
+      // Reset per-frame so transitions are clean
+      entity.rotation.x = 0;
+      entity.rotation.z = 0;
+      if (body) body.scale.set(1, 1.3, 1);
+      if (head) head.rotation.y = 0;
+      if (armL) armL.position.y = 0.70;
+      if (armR) armR.position.y = 0.70;
+
+      switch (state) {
+        case 'idle':
+          entity.rotation.z = Math.sin(p * 1.5 + off) * 0.04;
+          if (body) body.scale.y = 1.3 + Math.sin(p * 1.2 + off * 0.5) * 0.012;
+          break;
+
+        case 'walk':
+          entity.rotation.z = Math.sin(p * 5 + off) * 0.15;
+          if (body) body.scale.y = 1.3 - Math.abs(Math.sin(p * 10)) * 0.04;
+          if (head) head.rotation.y = Math.sin(p * 5) * 0.08;
+          if (armL) armL.position.y = 0.70 + Math.sin(p * 5) * 0.14;
+          if (armR) armR.position.y = 0.70 - Math.sin(p * 5) * 0.14;
+          break;
+
+        case 'attack': {
+          // Forward lunge arc over 0.5 s then auto-return to idle
+          const t = Math.min(p / 0.5, 1);
+          entity.rotation.x = Math.sin(t * Math.PI) * 0.42;
+          entity.rotation.z = Math.sin(p * 1.5 + off) * 0.04;
+          if (armL) armL.position.y = 0.70 + Math.sin(t * Math.PI) * 0.18;
+          if (armR) armR.position.y = 0.70 + Math.sin(t * Math.PI) * 0.18;
+          if (t >= 1) { entity.userData.animState = 'idle'; entity.userData.animPhase = 0; }
+          break;
+        }
+
+        case 'hit': {
+          // Rock backward over 0.35 s then return to idle
+          const t = Math.min(p / 0.35, 1);
+          entity.rotation.x = -Math.sin(t * Math.PI) * 0.5;
+          if (t >= 1) { entity.userData.animState = 'idle'; entity.userData.animPhase = 0; }
+          break;
+        }
+
+        case 'death': {
+          // Tip over sideways — ease-out cubic, permanent
+          const t = Math.min(p / 0.8, 1);
+          entity.rotation.z = (Math.PI / 2) * (1 - Math.pow(1 - t, 3));
+          break;
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // Play an animation state on an entity
+    // state: 'idle' | 'walk' | 'attack' | 'hit' | 'death'
+    // ----------------------------------------------------------------
+    playAnim(id, isPlayer, state) {
+      const map    = isPlayer ? this.playerMeshes : this.npcMeshes;
+      const entity = map.get(id);
+      if (!entity) return;
+
+      if (entity.userData.isProceduralWeeble) {
+        if (entity.userData.animState === state) return; // already in this state
+        entity.userData.animState = state;
+        entity.userData.animPhase = 0;
+        return;
+      }
+
+      // GLB with AnimationMixer
+      const mixer = this._mixers.get(id);
+      if (!mixer || !entity.userData.clips) return;
+      const clipName = { attack: 'attack1', hit: 'hit', walk: 'walk', idle: 'idle', death: 'death' }[state] || state;
+      const clip = THREE.AnimationClip.findByName(entity.userData.clips, clipName);
+      if (!clip) return;
+      const action = mixer.clipAction(clip);
+      mixer.stopAllAction();
+      action.reset().play();
+    }
+
     _makeEntityMesh(data, isPlayer) {
-      const modelPath = isPlayer
-        ? `/assets/characters/${data.race}_${(data.class || 'war').toLowerCase()}.glb`
-        : `/assets/npcs/${data.npcId || 'generic'}.glb`;
-
-      // Placeholder until GLB loads: coloured capsule (cylinder + sphere top)
-      const color = isPlayer ? 0x4488ff : 0xff4444;
-      const body  = new Mesh(new CylinderGeometry(0.4, 0.4, 1.8, 8), new MeshStandardMaterial({ color }));
-      body.castShadow = true;
-      // game (x, y, z) → Three.js (x, z, y); place at y=1 until ground clamped
-      body.position.set(data.x || 0, Math.max(0, data.z || 0) + 0.9, data.y || 0);
-      this.scene.add(body);
-
       const map = isPlayer ? this.playerMeshes : this.npcMeshes;
       const key = isPlayer ? data.socketId : data.spawnId;
-      map.set(key, body);
 
+      const bodyColor = this._entityColor(data, isPlayer);
+      const group = this._buildWeeble(bodyColor);
+
+      // game (x, y, z) → Three.js (x, z, y)
+      group.position.set(data.x || 0, data.z || 0, data.y || 0);
+      group.userData.isProceduralWeeble = true;
+      group.userData.animState  = 'idle';
+      group.userData.animPhase  = 0;
+      group.userData.phaseOffset = Math.random() * Math.PI * 2; // desync NPCs
+
+      this.scene.add(group);
+      map.set(key, group);
+
+      // Attempt to load a GLB override; procedural weeble stays until it arrives
       if (typeof THREE.GLTFLoader !== 'undefined') {
+        const modelPath = isPlayer
+          ? `/assets/characters/${(data.race || 'human').toLowerCase()}_${(data.class || 'war').toLowerCase()}.glb`
+          : `/assets/npcs/${data.npcId || 'generic'}.glb`;
+
         const loader = new THREE.GLTFLoader();
         loader.load(modelPath, (gltf) => {
           const model = gltf.scene;
-          model.position.copy(body.position);
-          model.traverse(obj => {
-            if (obj.isMesh) {
-              obj.castShadow = true;
-              // Dynamic entities DON'T use lightmaps — real-time lit only
-            }
-          });
-          this.scene.remove(body);
+          model.position.copy(group.position);
+          model.traverse(obj => { if (obj.isMesh) obj.castShadow = true; });
+          this.scene.remove(group);
           this.scene.add(model);
           map.set(key, model);
+
+          // Wire up AnimationMixer if the GLB has clips
+          if (gltf.animations && gltf.animations.length) {
+            const mixer = new THREE.AnimationMixer(model);
+            model.userData.clips = gltf.animations;
+            this._mixers.set(key, mixer);
+            const idle = THREE.AnimationClip.findByName(gltf.animations, 'idle');
+            if (idle) mixer.clipAction(idle).play();
+          }
         });
-        // On failure, placeholder stays — no error action needed
       }
 
-      return body;
+      return group;
     }
 
     spawnPlayer(data) {
@@ -429,12 +608,12 @@
 
     removePlayer(socketId) {
       const m = this.playerMeshes.get(socketId);
-      if (m) { this.scene.remove(m); this.playerMeshes.delete(socketId); }
+      if (m) { this.scene.remove(m); this.playerMeshes.delete(socketId); this._mixers.delete(socketId); }
     }
 
     removeNpc(spawnId) {
       const m = this.npcMeshes.get(spawnId);
-      if (m) { this.scene.remove(m); this.npcMeshes.delete(spawnId); }
+      if (m) { this.scene.remove(m); this.npcMeshes.delete(spawnId); this._mixers.delete(spawnId); }
     }
 
     // Move entity using game coordinates
@@ -472,7 +651,14 @@
     _startLoop() {
       const loop = () => {
         requestAnimationFrame(loop);
-        this.clock.getDelta(); // tick clock
+        const delta = this.clock.getDelta();
+
+        // Tick GLB AnimationMixers
+        this._mixers.forEach(mixer => mixer.update(delta));
+
+        // Procedural weeble animations
+        this.playerMeshes.forEach(e => this._animateWeeble(e, delta));
+        this.npcMeshes.forEach(e => this._animateWeeble(e, delta));
 
         if (this._followId) {
           const mesh = this.playerMeshes.get(this._followId);
