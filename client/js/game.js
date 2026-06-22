@@ -8,6 +8,8 @@ if (!charId) window.location.href = '/charselect.html';
 let socket;
 let me = null;         // character data
 let zoneData = null;
+let zoneTriggers = [];  // AABB trigger volumes for current zone
+let _inZoneTransition = false;
 let targetSpawnId = null;
 let targetIsNpc = true;
 let spellbook = [];
@@ -49,19 +51,44 @@ function initSocket() {
     addChat('System', err.message, 'system');
   });
 
-  socket.on('zone:entered', ({ character, snapshot, zone }) => {
+  socket.on('zone:entered', async ({ character, snapshot, zone }) => {
     me = { ...me, ...character };
     zoneData = zone;
     document.getElementById('zoneName').textContent = zone.display_name;
     updateCharPanel({ character: me });
 
+    // Sync local position to server-confirmed position
+    _pos.x = character.pos_x || 0;
+    _pos.y = character.pos_y || 0;
+    _pos.z = character.pos_z || 0;
+    _pos.heading = character.heading || 0;
+
     if (window.renderer && zone) {
       window.renderer.loadZone(zone);
+      // Ensure local player entity exists with correct socket.id
+      if (!window.renderer.playerMeshes.has(socket.id)) {
+        window.renderer.spawnPlayer({ socketId: socket.id, race: me.race, class: me.class, x: _pos.x, y: _pos.y, z: _pos.z });
+        window.renderer.followPlayer(socket.id);
+      } else {
+        window.renderer.moveEntity(socket.id, _pos.x, _pos.y, _pos.z, true);
+      }
+    }
+
+    // Fetch zone trigger volumes
+    try {
+      zoneTriggers = await api.get(`/api/world/triggers/${zone.id}`);
+      if (window.renderer) window.renderer.showTriggers(zoneTriggers);
+    } catch (_) {
+      zoneTriggers = [];
     }
 
     // Populate zone entities
     renderZoneEntities(snapshot);
     addChat('System', `You have entered ${zone.display_name}.`, 'system');
+
+    // Fade back in after zone load
+    _inZoneTransition = false;
+    _fadeScreen(false);
   });
 
   socket.on('player:entered', (data) => {
@@ -212,33 +239,98 @@ function initInput() {
 
 let _pos = { x: 0, y: 0, z: 0, heading: 0 };
 function sendMovement() {
-  if (!socket || !me) return;
+  if (!socket || !me || _inZoneTransition) return;
   let moved = false;
   const spd = MOVE_SPEED * 0.1;
   const h = _pos.heading;
 
-  if (keys['KeyW'] || keys['ArrowUp']) {
-    _pos.x -= Math.sin(h) * spd;
-    _pos.y -= Math.cos(h) * spd;
-    moved = true;
-  }
-  if (keys['KeyS'] || keys['ArrowDown']) {
-    _pos.x += Math.sin(h) * spd;
-    _pos.y += Math.cos(h) * spd;
-    moved = true;
-  }
-  if (keys['KeyA'] || keys['ArrowLeft']) { _pos.heading -= 0.05; moved = true; }
+  let dx = 0, dy = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    { dx -= Math.sin(h) * spd; dy -= Math.cos(h) * spd; moved = true; }
+  if (keys['KeyS'] || keys['ArrowDown'])  { dx += Math.sin(h) * spd; dy += Math.cos(h) * spd; moved = true; }
+  if (keys['KeyA'] || keys['ArrowLeft'])  { _pos.heading -= 0.05; moved = true; }
   if (keys['KeyD'] || keys['ArrowRight']) { _pos.heading += 0.05; moved = true; }
+
+  if (dx !== 0 || dy !== 0) {
+    let nx = _pos.x, ny = _pos.y, nz = _pos.z;
+
+    // Collision resolution via renderer raycasts (returns game-space coords)
+    if (window.renderer && window.renderer.resolveMovement) {
+      const resolved = window.renderer.resolveMovement(_pos.x, _pos.y, _pos.z, dx, dy);
+      nx = resolved.x;
+      ny = resolved.y;
+      nz = resolved.z;
+    } else {
+      nx = _pos.x + dx;
+      ny = _pos.y + dy;
+    }
+
+    _pos.x = nx;
+    _pos.y = ny;
+    _pos.z = nz;
+
+    // Check zone trigger AABB volumes
+    const hit = _checkTriggers(_pos.x, _pos.y, _pos.z);
+    if (hit) {
+      _fireTrigger(hit);
+      return;
+    }
+  }
 
   if (moved) {
     socket.emit('player:move', { x: _pos.x, y: _pos.y, z: _pos.z, heading: _pos.heading });
     if (window.renderer) {
-      const mesh = window.renderer.playerMeshes.get(socket.id);
-      if (mesh) {
-        mesh.position.set(_pos.x, mesh.position.y, _pos.y);
-        mesh.rotation.y = _pos.heading;
-      }
+      window.renderer.moveEntity(socket.id, _pos.x, _pos.y, _pos.z, true);
+      const mesh = window.renderer.playerMeshes?.get(socket.id);
+      if (mesh) mesh.rotation.y = _pos.heading;
     }
+  }
+}
+
+function _checkTriggers(gx, gy, gz) {
+  for (const t of zoneTriggers) {
+    if (Math.abs(gx - t.x) < t.half_w &&
+        Math.abs(gy - t.y) < t.half_d &&
+        Math.abs(gz - t.z) < t.half_h) {
+      return t;
+    }
+  }
+  return null;
+}
+
+function _fireTrigger(trigger) {
+  if (_inZoneTransition) return;
+  if (trigger.req_level && me.level < trigger.req_level) {
+    addChat('System', `You must be level ${trigger.req_level} to enter ${trigger.dest_display_name || 'that area'}.`, 'system');
+    return;
+  }
+  _inZoneTransition = true;
+  _fadeScreen(true);
+
+  // After fade completes, emit zone change
+  setTimeout(() => {
+    socket.emit('player:zone', {
+      destZoneId: trigger.dest_zone_id,
+      x: trigger.dest_x,
+      y: trigger.dest_y,
+      z: trigger.dest_z,
+      heading: trigger.dest_heading
+    });
+  }, 420); // slightly longer than the 0.4s CSS transition
+}
+
+function _fadeScreen(toBlack) {
+  const el = document.getElementById('zoneFade');
+  if (!el) return;
+  if (toBlack) {
+    el.classList.add('fading-out');
+    el.classList.remove('fading-in');
+  } else {
+    el.classList.add('fading-in');
+    el.classList.remove('fading-out');
+    // Once visible, wait a tick then start fading back
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.classList.remove('fading-in');
+    }));
   }
 }
 
@@ -272,15 +364,10 @@ function initUI() {
   document.getElementById('exitBtn').addEventListener('click', () => { if (confirm('Return to character select?')) window.location.href = '/charselect.html'; });
   document.getElementById('closeNpcModal').addEventListener('click', () => document.getElementById('npcDialogueModal').classList.add('hidden'));
 
-  // Three.js renderer
+  // Three.js renderer (player entity spawned in zone:entered once socket.id is known)
   const canvas = document.getElementById('gameCanvas');
   if (typeof THREE !== 'undefined' && typeof WGRenderer !== 'undefined') {
     window.renderer = new WGRenderer(canvas);
-    // Spawn local player placeholder
-    if (me) {
-      window.renderer.spawnPlayer({ socketId: 'local', race: me.race, class: me.class, x: me.pos_x || 0, y: me.pos_y || 0 });
-      window.renderer.followPlayer('local');
-    }
   }
 }
 

@@ -304,3 +304,16 @@ a:hover { color: var(--accent-hover); }
 /* ---- Attack button ---- */
 .btn-attack { background: rgba(200,56,56,.3); border-color: var(--danger); color: #ffaaaa; }
 .btn-attack:hover { background: rgba(200,56,56,.5); }
+
+/* ---- Zone fade overlay ---- */
+#zoneFade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 9999;
+}
+#zoneFade.fading-out { opacity: 1; pointer-events: all; }
+#zoneFade.fading-in  { opacity: 1; }

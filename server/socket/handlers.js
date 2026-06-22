@@ -250,21 +250,32 @@ function registerHandlers(io) {
     });
 
     // ---- Zone change ----
-    socket.on('player:zone', ({ targetZoneShortName }) => {
+    socket.on('player:zone', ({ targetZoneShortName, destZoneId, x, y, z, heading }) => {
       if (!activeChar) return;
-      const newZone = db.prepare('SELECT * FROM zones WHERE short_name=?').get(targetZoneShortName);
+
+      // Accept either destZoneId (from trigger) or legacy short name
+      const newZone = destZoneId
+        ? db.prepare('SELECT * FROM zones WHERE id=?').get(destZoneId)
+        : db.prepare('SELECT * FROM zones WHERE short_name=?').get(targetZoneShortName);
       if (!newZone) return socket.emit('error', { msg: 'Zone not found' });
+
+      // Use trigger-supplied coords, otherwise fall back to zone safe point
+      const destX = (x != null) ? x : newZone.safe_x;
+      const destY = (y != null) ? y : newZone.safe_y;
+      const destZ = (z != null) ? z : newZone.safe_z;
+      const destH = (heading != null) ? heading : 0;
 
       socket.leave(`zone:${activeChar.zone_id}`);
       socket.to(`zone:${activeChar.zone_id}`).emit('player:left', { socketId: socket.id });
 
       activeChar.zone_id = newZone.id;
-      activeChar.pos_x = newZone.safe_x;
-      activeChar.pos_y = newZone.safe_y;
-      activeChar.pos_z = newZone.safe_z;
+      activeChar.pos_x = destX;
+      activeChar.pos_y = destY;
+      activeChar.pos_z = destZ;
+      activeChar.heading = destH;
 
-      db.prepare('UPDATE characters SET zone_id=?,pos_x=?,pos_y=?,pos_z=? WHERE id=?')
-        .run(newZone.id, newZone.safe_x, newZone.safe_y, newZone.safe_z, activeChar.id);
+      db.prepare('UPDATE characters SET zone_id=?,pos_x=?,pos_y=?,pos_z=?,heading=? WHERE id=?')
+        .run(newZone.id, destX, destY, destZ, destH, activeChar.id);
 
       socket.join(`zone:${newZone.id}`);
       const snapshot = world.playerEnterZone(socket.id, activeChar.id, newZone.id);
@@ -272,7 +283,7 @@ function registerHandlers(io) {
       socket.emit('zone:entered', { character: sanitizeChar(activeChar), snapshot, zone: newZone });
       socket.to(`zone:${newZone.id}`).emit('player:entered', {
         socketId: socket.id, name: activeChar.name, level: activeChar.level,
-        x: newZone.safe_x, y: newZone.safe_y, z: newZone.safe_z,
+        x: destX, y: destY, z: destZ,
         race: activeChar.race, class: activeChar.class,
       });
     });

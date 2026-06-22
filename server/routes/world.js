@@ -60,4 +60,16 @@ router.get('/quests', (req, res) => {
   res.json(db.prepare('SELECT q.*, n.name AS giver_name FROM quests q LEFT JOIN npcs n ON n.id=q.giver_npc_id ORDER BY q.req_level').all());
 });
 
+// GET /api/world/triggers/:zoneId  — zone triggers for client-side AABB checking
+router.get('/triggers/:zoneId', (req, res) => {
+  const db = getDb();
+  const triggers = db.prepare(`
+    SELECT zt.*, z.short_name AS dest_short_name, z.display_name AS dest_display_name
+    FROM zone_triggers zt
+    JOIN zones z ON z.id = zt.dest_zone_id
+    WHERE zt.zone_id = ?
+  `).all(req.params.zoneId);
+  res.json(triggers);
+});
+
 module.exports = router;

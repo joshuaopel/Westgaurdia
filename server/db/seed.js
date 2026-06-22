@@ -332,4 +332,68 @@ if (getWarriorSpawn) db.prepare('UPDATE npc_spawns SET path_id=?, wander=0 WHERE
 
 console.log('✓ Patrol paths seeded');
 
+// ============================================================
+// ZONE TRIGGERS
+// ============================================================
+const efZone2 = db.prepare("SELECT id,safe_x,safe_y,safe_z FROM zones WHERE short_name='everfrost'").get();
+const hpZone  = db.prepare("SELECT id,safe_x,safe_y,safe_z FROM zones WHERE short_name='highpass'").get();
+const qeId = qcZone.id, qhId2 = qhZone.id, bbId2 = bbZone.id;
+
+const insertTrigger = db.prepare(`
+  INSERT OR IGNORE INTO zone_triggers
+    (zone_id, trigger_type, x, y, z, half_w, half_d, half_h,
+     dest_zone_id, dest_x, dest_y, dest_z, dest_heading, req_level, label)
+  VALUES
+    (@zone_id, @trigger_type, @x, @y, @z, @half_w, @half_d, @half_h,
+     @dest_zone_id, @dest_x, @dest_y, @dest_z, @dest_heading, @req_level, @label)
+`);
+
+const triggers = [
+  // Qeynos Hills → South Qeynos (western gate, far negative X end)
+  {
+    zone_id: qhId2,    trigger_type: 'zone_line',
+    x: -250, y: 0, z: 0,  half_w: 8, half_d: 30, half_h: 15,
+    dest_zone_id: qeId, dest_x: qcZone.safe_x, dest_y: qcZone.safe_y, dest_z: 0, dest_heading: 0,
+    req_level: 1, label: 'South Qeynos'
+  },
+  // South Qeynos → Qeynos Hills (east gate)
+  {
+    zone_id: qeId,     trigger_type: 'zone_line',
+    x: 250, y: 0, z: 0,   half_w: 8, half_d: 30, half_h: 15,
+    dest_zone_id: qhId2, dest_x: -230, dest_y: 0, dest_z: 0, dest_heading: 3.14,
+    req_level: 1, label: 'Qeynos Hills'
+  },
+  // Qeynos Hills → Blackburrow dungeon entrance
+  {
+    zone_id: qhId2,    trigger_type: 'dungeon_enter',
+    x: 300, y: 120, z: 0,  half_w: 8, half_d: 8, half_h: 8,
+    dest_zone_id: bbId2, dest_x: bbZone.safe_x, dest_y: bbZone.safe_y, dest_z: 0, dest_heading: 3.14,
+    req_level: 1, label: 'Blackburrow — Enter (dangerous for low-level adventurers!)'
+  },
+  // Blackburrow → Qeynos Hills (exit tunnel)
+  {
+    zone_id: bbId2,    trigger_type: 'dungeon_exit',
+    x: -80, y: 0, z: -5,  half_w: 8, half_d: 8, half_h: 8,
+    dest_zone_id: qhId2, dest_x: 290, dest_y: 110, dest_z: 0, dest_heading: 0,
+    req_level: 1, label: 'Exit to Qeynos Hills'
+  },
+  // Qeynos Hills → Highpass Hold (northeast pass)
+  {
+    zone_id: qhId2,    trigger_type: 'zone_line',
+    x: 0, y: 250, z: 0,   half_w: 30, half_d: 8, half_h: 15,
+    dest_zone_id: hpZone.id, dest_x: hpZone.safe_x, dest_y: hpZone.safe_y, dest_z: 0, dest_heading: 0,
+    req_level: 1, label: 'Highpass Hold'
+  },
+  // Highpass Hold → Everfrost (north)
+  {
+    zone_id: hpZone.id, trigger_type: 'zone_line',
+    x: 0, y: 250, z: 0,   half_w: 30, half_d: 8, half_h: 15,
+    dest_zone_id: efZone2.id, dest_x: efZone2.safe_x, dest_y: efZone2.safe_y, dest_z: 0, dest_heading: 0,
+    req_level: 1, label: 'Everfrost Peaks'
+  },
+];
+
+triggers.forEach(t => insertTrigger.run(t));
+console.log('✓ Zone triggers seeded');
+
 console.log('\nSeed complete!');

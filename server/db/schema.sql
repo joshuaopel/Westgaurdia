@@ -312,6 +312,36 @@ CREATE TABLE IF NOT EXISTS npc_spawns (
 );
 
 -- ------------------------------------------------------------
+-- Zone Triggers (zone lines, portals, dungeon entrances)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS zone_triggers (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  zone_id       INTEGER NOT NULL REFERENCES zones(id),
+  trigger_type  TEXT    NOT NULL DEFAULT 'zone_line', -- zone_line | portal | dungeon_enter | dungeon_exit
+  -- AABB center + half-extents (in game world units, XY horizontal / Z vertical)
+  x             REAL    NOT NULL DEFAULT 0,
+  y             REAL    NOT NULL DEFAULT 0,
+  z             REAL    NOT NULL DEFAULT 0,
+  half_w        REAL    NOT NULL DEFAULT 10,   -- half-width  (X axis)
+  half_d        REAL    NOT NULL DEFAULT 10,   -- half-depth  (Y axis)
+  half_h        REAL    NOT NULL DEFAULT 10,   -- half-height (Z axis)
+  -- destination
+  dest_zone_id  INTEGER NOT NULL REFERENCES zones(id),
+  dest_x        REAL    NOT NULL DEFAULT 0,
+  dest_y        REAL    NOT NULL DEFAULT 0,
+  dest_z        REAL    NOT NULL DEFAULT 0,
+  dest_heading  REAL    NOT NULL DEFAULT 0,
+  -- requirements
+  req_level     INTEGER NOT NULL DEFAULT 1,
+  req_quest_id  INTEGER REFERENCES quests(id),
+  -- display
+  label         TEXT,   -- tooltip shown when player is near
+  facing        REAL    NOT NULL DEFAULT 0  -- visual facing of portal graphic
+);
+
+CREATE INDEX IF NOT EXISTS idx_zone_triggers_zone ON zone_triggers(zone_id);
+
+-- ------------------------------------------------------------
 -- Quests
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quests (
