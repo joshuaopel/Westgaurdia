@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Westgaurdia - Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-logo">
+      <h1 class="logo-title">WESTGAURDIA</h1>
+      <p class="logo-sub">Chronicles of the Ancient Realm</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="tab-btn active" data-tab="login">Login</button>
+      <button class="tab-btn" data-tab="register">Register</button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="tab-login" class="tab-content active">
+      <form id="loginForm" class="auth-form">
+        <div class="form-group">
+          <label for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" name="username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
+        </div>
+        <div id="loginError" class="form-error hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Enter World</button>
+      </form>
+    </div>
+
+    <!-- Register Form -->
+    <div id="tab-register" class="tab-content hidden">
+      <form id="registerForm" class="auth-form">
+        <div class="form-group">
+          <label for="regUsername">Username</label>
+          <input type="text" id="regUsername" name="username" minlength="3" maxlength="20" required>
+        </div>
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input type="email" id="regEmail" name="email" required>
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Password</label>
+          <input type="password" id="regPassword" name="password" minlength="6" required>
+        </div>
+        <div class="form-group">
+          <label for="regConfirm">Confirm Password</label>
+          <input type="password" id="regConfirm" name="confirm" required>
+        </div>
+        <div id="registerError" class="form-error hidden"></div>
+        <div id="registerSuccess" class="form-success hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+      </form>
+    </div>
+
+    <div class="auth-footer">
+      <p>A web-based MMO RPG experience &bull; <a href="#">Help</a></p>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => { t.classList.add('hidden'); t.classList.remove('active'); });
+        btn.classList.add('active');
+        const tab = document.getElementById(`tab-${btn.dataset.tab}`);
+        tab.classList.remove('hidden'); tab.classList.add('active');
+      });
+    });
+
+    // Login
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('loginError');
+      errEl.classList.add('hidden');
+      const data = await api.post('/api/auth/login', {
+        username: document.getElementById('loginUsername').value,
+        password: document.getElementById('loginPassword').value,
+      });
+      if (data.error) { errEl.textContent = data.error; errEl.classList.remove('hidden'); return; }
+      localStorage.setItem('wg_token', data.token);
+      localStorage.setItem('wg_username', data.username);
+      window.location.href = '/charselect.html';
+    });
+
+    // Register
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('registerError');
+      const sucEl = document.getElementById('registerSuccess');
+      errEl.classList.add('hidden'); sucEl.classList.add('hidden');
+
+      const pass = document.getElementById('regPassword').value;
+      const confirm = document.getElementById('regConfirm').value;
+      if (pass !== confirm) { errEl.textContent = 'Passwords do not match'; errEl.classList.remove('hidden'); return; }
+
+      const data = await api.post('/api/auth/register', {
+        username: document.getElementById('regUsername').value,
+        email: document.getElementById('regEmail').value,
+        password: pass,
+      });
+      if (data.error) { errEl.textContent = data.error; errEl.classList.remove('hidden'); return; }
+      localStorage.setItem('wg_token', data.token);
+      localStorage.setItem('wg_username', data.username);
+      window.location.href = '/charselect.html';
+    });
+
+    // Redirect if already logged in
+    if (localStorage.getItem('wg_token')) window.location.href = '/charselect.html';
+  </script>
+</body>
+</html>

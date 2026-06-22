@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Westgaurdia</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="game-page">
+
+  <!-- ===== TOP BAR ===== -->
+  <div class="top-bar">
+    <div class="top-left">
+      <span class="zone-name" id="zoneName">Qeynos Hills</span>
+    </div>
+    <div class="top-center logo-small">WESTGAURDIA</div>
+    <div class="top-right">
+      <span id="onlineCount" class="online-count">1 online</span>
+      <button class="btn btn-sm" id="whoBtn">Who</button>
+      <button class="btn btn-sm btn-danger" id="exitBtn">Exit</button>
+    </div>
+  </div>
+
+  <!-- ===== MAIN GAME LAYOUT ===== -->
+  <div class="game-layout">
+
+    <!-- LEFT: player stats -->
+    <div class="panel panel-left">
+      <div class="player-portrait" id="playerPortrait"></div>
+      <div class="player-name" id="playerName">Adventurer</div>
+      <div class="player-title" id="playerTitle">Level 1 Human Warrior</div>
+
+      <div class="resource-bars">
+        <div class="resource-row">
+          <div class="resource-label">HP</div>
+          <div class="resource-bar-wrap">
+            <div class="resource-bar hp-bar" id="hpBar" style="width:100%"></div>
+          </div>
+          <div class="resource-value" id="hpVal">100/100</div>
+        </div>
+        <div class="resource-row" id="manaRow">
+          <div class="resource-label">MP</div>
+          <div class="resource-bar-wrap">
+            <div class="resource-bar mana-bar" id="manaBar" style="width:100%"></div>
+          </div>
+          <div class="resource-value" id="manaVal">100/100</div>
+        </div>
+        <div class="resource-row">
+          <div class="resource-label">EN</div>
+          <div class="resource-bar-wrap">
+            <div class="resource-bar end-bar" id="endBar" style="width:100%"></div>
+          </div>
+          <div class="resource-value" id="endVal">100/100</div>
+        </div>
+      </div>
+
+      <div class="exp-bar-wrap">
+        <div class="exp-bar" id="expBar" style="width:0%"></div>
+        <span class="exp-label" id="expLabel">0 XP</span>
+      </div>
+
+      <div class="stat-block" id="statBlock">
+        <div class="stat-row"><span>STR</span><span id="s_str">75</span></div>
+        <div class="stat-row"><span>STA</span><span id="s_sta">75</span></div>
+        <div class="stat-row"><span>AGI</span><span id="s_agi">75</span></div>
+        <div class="stat-row"><span>DEX</span><span id="s_dex">75</span></div>
+        <div class="stat-row"><span>INT</span><span id="s_int">75</span></div>
+        <div class="stat-row"><span>WIS</span><span id="s_wis">75</span></div>
+        <div class="stat-row"><span>CHA</span><span id="s_cha">75</span></div>
+      </div>
+    </div>
+
+    <!-- CENTER: game world view -->
+    <div class="game-center">
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Target frame -->
+      <div class="target-frame hidden" id="targetFrame">
+        <div class="target-name" id="targetName">--</div>
+        <div class="target-info" id="targetInfo"></div>
+        <div class="target-hp-wrap">
+          <div class="target-hp-bar" id="targetHpBar" style="width:100%"></div>
+        </div>
+        <div class="target-actions">
+          <button class="btn btn-sm btn-attack" id="attackBtn">Attack</button>
+          <button class="btn btn-sm" id="talkBtn">Talk</button>
+        </div>
+      </div>
+
+      <!-- Spell gem bar -->
+      <div class="spell-bar" id="spellBar">
+        <div class="spell-bar-label">Spells</div>
+        <div class="spell-gems" id="spellGems">
+          <!-- populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: zone entities + tabs -->
+    <div class="panel panel-right">
+      <div class="panel-tabs">
+        <button class="ptab active" data-ptab="zone">Zone</button>
+        <button class="ptab" data-ptab="spells">Spells</button>
+        <button class="ptab" data-ptab="quests">Quests</button>
+        <button class="ptab" data-ptab="inventory">Inv</button>
+      </div>
+
+      <!-- Zone tab -->
+      <div class="ptab-content active" id="ptab-zone">
+        <h4>Players Nearby</h4>
+        <div id="playersList" class="entity-list"></div>
+        <h4>Entities</h4>
+        <div id="npcList" class="entity-list"></div>
+      </div>
+
+      <!-- Spells tab -->
+      <div class="ptab-content hidden" id="ptab-spells">
+        <h4>Spellbook</h4>
+        <div id="spellbook" class="spell-list"></div>
+      </div>
+
+      <!-- Quests tab -->
+      <div class="ptab-content hidden" id="ptab-quests">
+        <h4>Active Quests</h4>
+        <div id="questLog" class="quest-list"></div>
+      </div>
+
+      <!-- Inventory tab -->
+      <div class="ptab-content hidden" id="ptab-inventory">
+        <h4>Inventory</h4>
+        <div id="inventoryGrid" class="inventory-grid"></div>
+        <div class="currency-display" id="currencyDisplay"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CHAT ===== -->
+  <div class="chat-area">
+    <div class="chat-tabs">
+      <button class="ctab active" data-chan="say">Say</button>
+      <button class="ctab" data-chan="ooc">OOC</button>
+      <button class="ctab" data-chan="auction">Auction</button>
+      <button class="ctab" data-chan="tell">Tell</button>
+    </div>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="chat-input-row">
+      <input type="text" id="tellTarget" class="tell-target hidden" placeholder="Tell target">
+      <input type="text" id="chatInput" class="chat-input" placeholder="Press Enter to chat...">
+      <button class="btn btn-sm" id="chatSendBtn">Send</button>
+    </div>
+  </div>
+
+  <!-- ===== MODALS ===== -->
+  <div id="npcDialogueModal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="npcDialogueName">NPC</h3>
+        <button class="modal-close" id="closeNpcModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="npcDialogueText" class="dialogue-text"></div>
+        <div id="npcKeywords" class="dialogue-keywords"></div>
+        <div id="npcQuestList" class="npc-quest-list hidden"></div>
+        <div id="merchantList" class="merchant-list hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="whoModal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>Who is Online</h3>
+        <button class="modal-close" onclick="document.getElementById('whoModal').classList.add('hidden')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="whoList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="levelUpModal" class="modal hidden">
+    <div class="modal-content modal-sm center-text">
+      <h2 class="levelup-title">Level Up!</h2>
+      <p id="levelUpText">You have reached level 2!</p>
+      <button class="btn btn-primary" onclick="document.getElementById('levelUpModal').classList.add('hidden')">Awesome!</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Three.js + GLTFLoader for Blender asset rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/renderer.js"></script>
+  <script src="/js/game.js"></script>
+</body>
+</html>

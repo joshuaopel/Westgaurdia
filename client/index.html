@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0;url=/login.html">
+  <title>Westgaurdia</title>
+</head>
+<body>
+  <script>
+    if (localStorage.getItem('wg_token')) {
+      window.location.href = '/charselect.html';
+    } else {
+      window.location.href = '/login.html';
+    }
+  </script>
+</body>
+</html>

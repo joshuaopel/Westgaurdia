@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Westgaurdia - Character Select</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="charselect-page">
+  <div class="charselect-container">
+    <div class="charselect-header">
+      <h1 class="logo-title">WESTGAURDIA</h1>
+      <div class="account-info">
+        <span id="accountName"></span>
+        <button class="btn btn-sm" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div class="charselect-main">
+      <!-- Character list -->
+      <div class="char-list-panel">
+        <h2>Select Your Character</h2>
+        <div id="charList" class="char-list">
+          <div class="char-loading">Loading characters...</div>
+        </div>
+        <button class="btn btn-secondary" id="createCharBtn">+ Create New Character</button>
+      </div>
+
+      <!-- Selected char preview -->
+      <div class="char-preview-panel" id="charPreview">
+        <div class="char-preview-placeholder">
+          <p>Select a character to begin your adventure</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="charselect-actions">
+      <button class="btn btn-primary btn-lg" id="enterWorldBtn" disabled>Enter World</button>
+      <button class="btn btn-danger btn-sm hidden" id="deleteCharBtn">Delete Character</button>
+    </div>
+  </div>
+
+  <!-- Create Character Modal -->
+  <div id="createModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Create Character</h2>
+        <button class="modal-close" id="closeCreateModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="createCharForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Character Name</label>
+              <input type="text" id="charName" minlength="3" maxlength="20" required placeholder="Letters only">
+            </div>
+            <div class="form-group">
+              <label>Gender</label>
+              <select id="charGender">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Race</label>
+              <select id="charRace"></select>
+            </div>
+            <div class="form-group">
+              <label>Class</label>
+              <select id="charClass"></select>
+            </div>
+          </div>
+
+          <div id="raceClassInfo" class="race-class-info"></div>
+          <div id="createError" class="form-error hidden"></div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="cancelCreateBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Character</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth();
+    let characters = [];
+    let selectedChar = null;
+    let raceOptions = {}, classOptions = {};
+
+    document.getElementById('accountName').textContent = localStorage.getItem('wg_username');
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    async function loadCharacters() {
+      const data = await api.get('/api/characters');
+      characters = data.error ? [] : data;
+      renderCharList();
+    }
+
+    function renderCharList() {
+      const el = document.getElementById('charList');
+      if (!characters.length) {
+        el.innerHTML = '<div class="char-empty">No characters yet. Create one to begin!</div>';
+        return;
+      }
+      el.innerHTML = characters.map(c => `
+        <div class="char-entry" data-id="${c.id}">
+          <div class="char-icon class-icon-${c.class.toLowerCase()}"></div>
+          <div class="char-info">
+            <div class="char-name">${c.name}</div>
+            <div class="char-details">Level ${c.level} ${c.race} ${c.class}</div>
+            <div class="char-zone">${c.zone_name}</div>
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.char-entry').forEach(el => {
+        el.addEventListener('click', () => selectChar(parseInt(el.dataset.id)));
+      });
+    }
+
+    function selectChar(id) {
+      selectedChar = characters.find(c => c.id === id);
+      document.querySelectorAll('.char-entry').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+      });
+
+      const preview = document.getElementById('charPreview');
+      preview.innerHTML = `
+        <div class="char-preview-card">
+          <div class="preview-portrait class-portrait-${selectedChar.class.toLowerCase()}"></div>
+          <h3>${selectedChar.name}</h3>
+          <table class="preview-stats">
+            <tr><td>Level</td><td>${selectedChar.level}</td></tr>
+            <tr><td>Race</td><td>${selectedChar.race.charAt(0).toUpperCase() + selectedChar.race.slice(1)}</td></tr>
+            <tr><td>Class</td><td>${selectedChar.class}</td></tr>
+            <tr><td>Zone</td><td>${selectedChar.zone_name}</td></tr>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('enterWorldBtn').disabled = false;
+      document.getElementById('deleteCharBtn').classList.remove('hidden');
+    }
+
+    document.getElementById('enterWorldBtn').addEventListener('click', () => {
+      if (selectedChar) {
+        localStorage.setItem('wg_char_id', selectedChar.id);
+        window.location.href = '/game.html';
+      }
+    });
+
+    document.getElementById('deleteCharBtn').addEventListener('click', async () => {
+      if (!selectedChar || !confirm(`Delete ${selectedChar.name}? This cannot be undone.`)) return;
+      await api.del(`/api/characters/${selectedChar.id}`);
+      selectedChar = null;
+      document.getElementById('enterWorldBtn').disabled = true;
+      document.getElementById('deleteCharBtn').classList.add('hidden');
+      document.getElementById('charPreview').innerHTML = '<div class="char-preview-placeholder"><p>Select a character to begin your adventure</p></div>';
+      await loadCharacters();
+    });
+
+    // Create character modal
+    document.getElementById('createCharBtn').addEventListener('click', openCreateModal);
+    document.getElementById('closeCreateModal').addEventListener('click', closeCreateModal);
+    document.getElementById('cancelCreateBtn').addEventListener('click', closeCreateModal);
+
+    async function openCreateModal() {
+      document.getElementById('createModal').classList.remove('hidden');
+      if (!Object.keys(raceOptions).length) {
+        const opts = await api.get('/api/characters/meta/options');
+        raceOptions = opts.races; classOptions = opts.classes;
+        populateRaceClass();
+      }
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.add('hidden');
+      document.getElementById('createCharForm').reset();
+      document.getElementById('createError').classList.add('hidden');
+    }
+
+    function populateRaceClass() {
+      const raceEl = document.getElementById('charRace');
+      const classEl = document.getElementById('charClass');
+      raceEl.innerHTML = Object.entries(raceOptions).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+      updateClassOptions();
+      raceEl.addEventListener('change', updateClassOptions);
+    }
+
+    function updateClassOptions() {
+      const race = document.getElementById('charRace').value;
+      const raceDef = raceOptions[race];
+      const classEl = document.getElementById('charClass');
+      const allowed = raceDef?.classes || [];
+      classEl.innerHTML = allowed.map(k => `<option value="${k}">${classOptions[k]?.name || k}</option>`).join('');
+      updateInfoBox();
+    }
+
+    function updateInfoBox() {
+      const race = raceOptions[document.getElementById('charRace').value];
+      const cls = classOptions[document.getElementById('charClass').value];
+      if (!race || !cls) return;
+      document.getElementById('raceClassInfo').innerHTML = `
+        <div class="info-box">
+          <strong>${race.name} ${cls.name}</strong>
+          <div class="stat-preview">
+            STR ${race.str} &bull; STA ${race.sta} &bull; AGI ${race.agi} &bull; DEX ${race.dex} &bull;
+            INT ${race.int} &bull; WIS ${race.wis} &bull; CHA ${race.cha}
+          </div>
+        </div>
+      `;
+    }
+
+    document.getElementById('charClass')?.addEventListener('change', updateInfoBox);
+
+    document.getElementById('createCharForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('createError');
+      errEl.classList.add('hidden');
+
+      const data = await api.post('/api/characters', {
+        name: document.getElementById('charName').value,
+        race: document.getElementById('charRace').value,
+        classKey: document.getElementById('charClass').value,
+        gender: document.getElementById('charGender').value,
+      });
+
+      if (data.error) { errEl.textContent = data.error; errEl.classList.remove('hidden'); return; }
+      closeCreateModal();
+      await loadCharacters();
+    });
+
+    loadCharacters();
+  </script>
+</body>
+</html>
