@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "seed": "node server/db/seed.js"
+    "seed": "node server/db/seed.js",
+    "import:zone": "node server/scripts/importZone.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,0 +1,86 @@
+{
+  "_comment": "Westgaurdia zone manifest — exported by Blender addon, consumed by npm run import:zone",
+  "zone": "qeynos_hills",
+  "version": "1",
+
+  "spawns": [
+    {
+      "npc_name": "Gnoll Scout",
+      "x": 120.0, "y": 85.0, "z": 0.0,
+      "heading": 0,
+      "respawn_time": 300,
+      "wander": true,
+      "wander_radius": 40,
+      "spawn_group": "gnoll_east"
+    },
+    {
+      "npc_name": "Gnoll Scout",
+      "x": 160.0, "y": 90.0, "z": 0.0,
+      "heading": 180,
+      "respawn_time": 300,
+      "wander": true,
+      "wander_radius": 40,
+      "spawn_group": "gnoll_east"
+    },
+    {
+      "npc_name": "Gnoll Warrior",
+      "x": 200.0, "y": 120.0, "z": 0.0,
+      "heading": 270,
+      "respawn_time": 420,
+      "patrol_path": "gnoll_camp_loop",
+      "aggro_range_override": 70,
+      "spawn_group": "gnoll_camp"
+    },
+    {
+      "npc_name": "Guard Fynn",
+      "x": 10.0, "y": -15.0, "z": 0.0,
+      "heading": 90,
+      "respawn_time": 600,
+      "patrol_path": "qeynos_gate_patrol"
+    }
+  ],
+
+  "patrol_paths": [
+    {
+      "name": "gnoll_camp_loop",
+      "loop_type": "loop",
+      "waypoints": [
+        { "x": 200.0, "y": 120.0, "z": 0.0, "heading":   0, "wait_time": 0.0 },
+        { "x": 220.0, "y": 130.0, "z": 0.0, "heading":  45, "wait_time": 1.5 },
+        { "x": 215.0, "y": 155.0, "z": 0.0, "heading":  90, "wait_time": 0.0 },
+        { "x": 195.0, "y": 150.0, "z": 0.0, "heading": 225, "wait_time": 1.0 }
+      ]
+    },
+    {
+      "name": "qeynos_gate_patrol",
+      "loop_type": "ping_pong",
+      "waypoints": [
+        { "x":  10.0, "y": -15.0, "z": 0.0, "heading": 90, "wait_time": 2.0 },
+        { "x":  10.0, "y":  15.0, "z": 0.0, "heading": 270, "wait_time": 2.0 }
+      ]
+    }
+  ],
+
+  "zone_triggers": [
+    {
+      "trigger_type": "zone_line",
+      "label": "To Qeynos",
+      "x": -5.0, "y": 0.0, "z": 5.0,
+      "half_w": 8.0, "half_d": 6.0, "half_h": 12.0,
+      "dest_zone": "qeynos",
+      "dest_x": 150.0, "dest_y": -20.0, "dest_z": 0.0,
+      "dest_heading": 0,
+      "req_level": 1
+    },
+    {
+      "trigger_type": "dungeon_enter",
+      "label": "Blackburrow",
+      "x": 350.0, "y": 280.0, "z": 0.0,
+      "half_w": 6.0, "half_d": 6.0, "half_h": 8.0,
+      "dest_zone": "blackburrow",
+      "dest_x": 0.0, "dest_y": 0.0, "dest_z": 0.0,
+      "dest_heading": 0,
+      "req_level": 1
+    }
+  ]
+}
